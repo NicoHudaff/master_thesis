@@ -132,3 +132,4 @@ data/*
 notebooks/*
 *.ipynb
 *.csv
+config.json
