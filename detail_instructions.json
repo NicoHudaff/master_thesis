@@ -1,0 +1,118 @@
+{
+    "Pass": {
+        "typen": [
+            "Clearance",
+            "Ball Receipt*",
+            "Pressure",
+            "Block",
+            "Pass",
+            "Ball Recovery",
+            "Interception",
+            "Goal Keeper",
+            "Duel",
+            "Carry",
+            "Foul Committed",
+            "Foul Won"
+        ],
+        "dist": false,
+        "dummies": [
+            "pass_body_part",
+            "pass_height",
+            "pass_type",
+            "pass_outcome",
+            "pass_technique"
+        ],
+        "categories": {
+            "pass_length": [
+                15,
+                30
+            ],
+            "duration": [
+                0.5,
+                2
+            ],
+            "pass_angle": [
+                -2,
+                2
+            ]
+        },
+        "params": {
+            "counterpress": "sum",
+            "under_pressure": "sum",
+            "pass_backheel": "sum",
+            "pass_aerial_won": "sum",
+            "pass_assisted_shot_id": "count",
+            "pass_cross": "sum",
+            "pass_cut_back": "sum",
+            "pass_miscommunication": "sum",
+            "pass_shot_assist": "sum",
+            "pass_switch": "sum",
+            "pass_deflected": "sum",
+            "pass_no_touch": "sum"
+        },
+        "rename": {
+            "counterpress": "pass_counterpress",
+            "under_pressure": "pass_under_pressure",
+            "pass_assisted_shot_id": "pass_assist"
+        }
+    },
+    "Ball Recovery": {
+        "typen": [
+            "Pass",
+            "Pressure"
+        ],
+        "dist": false,
+        "dummies": false,
+        "categories": false,
+        "params": {
+            "ball_recovery_recovery_failure": "sum",
+            "ball_recovery_offensive": "sum",
+            "out": "sum",
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "out": "ball_recovery_out",
+            "under_pressure": "ball_recovery_under_pressure"
+        }
+    },
+    "Carry": {
+        "typen": [
+            "Pass",
+            "Ball Receipt*",
+            "Pressure",
+            "Ball Recovery",
+            "Miscontrol",
+            "Duel",
+            "Block",
+            "Dispossessed",
+            "Dribble",
+            "Foul Won",
+            "Foul Committed",
+            "Dribbled Past",
+            "Goal Keeper",
+            "Shot",
+            "Interception",
+            "50/50",
+            "Injury Stoppage",
+            "Clearance"
+        ],
+        "dist": true,
+        "dummies": false,
+        "categories": {
+            "dist": [
+                5,
+                15
+            ],
+            "duration": [
+                1,
+                5
+            ]
+        },
+        "params": {
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "under_pressure": "carry_under_pressure"
+        }
+    }
+}

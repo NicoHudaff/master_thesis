@@ -1,28 +1,38 @@
-from pyparsing import restOfLine
-from statsbombpy import sb
 import pandas as pd
 import ray
 from pandarallel import pandarallel
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import json
-import numpy as np
 from typing import Optional
 from math import sqrt
 
 with open("./config.json") as config_file:
     config = json.load(config_file)
 
+with open("./detail_instructions.json") as detail_file:
+    detail = json.load(detail_file)
+
 pandarallel.initialize()
 ray.init(log_to_driver=False, num_cpus=7)
 
 
-def get_distance(x):
+def get_distance(x: pd.core.series.Series) -> float:
+    """
+    This function returns the distance between two points
+    Given the end_location and the location
+    If it is not give, None will be returned
+
+    Input:  x:  The row of a DataFrame, where the locations are stored
+    Output:     The distance between the points
+    """
+    # The end_location could be saved in "carry_end_location"
     try:
         return sqrt(
             (x["carry_end_location"][0] - x["location"][0]) ** 2
             + (x["carry_end_location"][1] - x["location"][1]) ** 2
         )
+    # or in "end_location"
     except:
         try:
             return sqrt(
@@ -33,8 +43,34 @@ def get_distance(x):
             return None
 
 
-def get_recoveries_detail(df):
-    msk = df.type == "Ball Recovery"
+def get_details(
+    df: pd.DataFrame,
+    type_msk: str,
+    rel_events: list,
+    dist: bool,
+    dummies: list,
+    categories: dict,
+    params: dict,
+    rename: dict,
+) -> pd.DataFrame:
+    """
+    This function will calculate based on the type count the various events
+    Based on the type different events are usefull to count
+    Eg for a pass distance might be important as well as for a carry,
+    but other types like ball recovery this is not available
+
+    Input:  df:         The df containing all single datapoints
+            type_msk:   The type for the analysis should be done
+            rel_events: A list of all events that might be related to an action of this type
+            dist:       Boolean value whether the distance should be calculated based on the locations
+            dummies:    A list of columns for which a dummy columns should be added
+            categories: A dictionary indicating which cols can put into categories (long, middle, short)
+                        And what the threshholds are
+            params:     A dictionary indicating how each columns should be counted ("count" or sum)
+            rename:     A dictionary which purpose it is to rename some columns in the final df
+    """
+    # get all events for the specific type
+    msk = df.type == type_msk
     dff = pd.concat(
         [
             pd.json_normalize(df[msk].content).dropna(axis=1, how="all"),
@@ -42,40 +78,76 @@ def get_recoveries_detail(df):
         ],
         axis=1,
     )
-    if "related_events" in dff.columns:
+
+    # calculate how many related events are there
+    if "related_events" in dff.columns and rel_events:
+        # map the ids of related events w/ the type
         dff = dff.explode("related_events")
         dff = dff.merge(
             df[["id", "type"]], left_on="related_events", right_on="id", how="left"
         )
-        params = {
+        params_rel = {
             c: "first"
             for c in dff.columns
             if c not in ["related_events", "id_x", "id_y", "type_y"]
         }
-        params["type_y"] = list
-        dff = dff.groupby("id_x").agg(params)
-        dff["ball_recovery_pass_rel"] = dff.type_y.apply(lambda x: "Pass" in x)
-        dff["ball_recovery_pressure_rel"] = dff.type_y.apply(lambda x: "Pressure" in x)
-    params = {
-        "ball_recovery_recovery_failure": sum,
-        "ball_recovery_offensive": sum,
-        "out": sum,
-        "under_pressure": sum,
-        "ball_recovery_pass_rel": sum,
-        "ball_recovery_pressure_rel": sum,
-        "player": "count",
-    }
+        params_rel["type_y"] = list
+        dff = dff.groupby("id_x").agg(params_rel)
 
-    params = {k: v for k, v in params.items() if k in dff.columns}
-         
-    rename = {
-                "out": "ball_recovery_out",
-                "under_pressure": "ball_recovery_under_pressure",
-                "player": "total_ball_recovery",
+        # check how many relations are there for all possible relations
+        for t in rel_events:
+            dff[f"{type_msk.lower()}_{t.lower()}_rel"] = dff.type_y.apply(
+                lambda x: t in x
+            )
+
+    # if the input indicates it calculate the distance
+    if dist:
+        dff["dist"] = dff.apply(get_distance, axis=1)
+
+    # if the input indicates calculate for the columns dummy columns
+    if dummies:
+        dummy_cols = []
+
+        for col in [d for d in dummies if d in dff.columns]:
+            df_dummies = pd.get_dummies(dff[col], prefix=col)
+            dummy_cols.extend(df_dummies.columns)
+            dff = pd.concat([df_dummies, dff], axis=1)
+
+    # if the input indicates calculate for the columns the number of short, middle and longs
+    # TODO: Here something seems to be broken
+    if categories:
+        for col, thresh in {
+            k: v for k, v in categories.items() if k in dff.columns
+        }.items():
+            dff[f"short_{col}"] = dff[col].astype(float) < thresh[0]
+            dff[f"middle_{col}"] = (dff[col].astype(float) < thresh[1]) & (
+                dff[col].astype(float) >= thresh[0]
+            )
+            dff[f"long_{col}"] = dff[col].astype(float) >= thresh[1]
+
+    # update the counting for all added columns in the previous processes
+    params.update({f"{type_msk.lower()}_{t.lower()}_rel": sum for t in rel_events})
+    if dummies:
+        params.update({t: sum for t in dummy_cols})
+    if categories:
+        params.update(
+            {
+                f"{length}_{col}": sum
+                for col in categories.keys()
+                for length in ["short", "middle", "long"]
             }
+        )
+    # add this column to count the total numbers
+    params["player"] = "count"
+    rename["player"] = f"total_{type_msk.lower()}"
+
+    # only use the cols that are in the df and replace the string "sum" w/ the function sum
+    params = {k: v for k, v in params.items() if k in dff.columns}
+    params = {k: v if v != "sum" else sum for k, v in params.items()}
 
     rename = {k: v for k, v in rename.items() if k in dff.columns}
 
+    # count via a groupby
     return (
         dff.groupby(["match_id", "minute", "team"])
         .agg(params)
@@ -87,278 +159,104 @@ def get_recoveries_detail(df):
     )
 
 
-def get_carries_details(df):
-    msk = df.type == "Carry"
-    dff = pd.concat(
-        [
-            pd.json_normalize(df[msk].content).dropna(axis=1, how="all"),
-            df[msk].reset_index(drop=True),
-        ],
-        axis=1,
-    )
-    typen = [
-        "Pass",
-        "Ball Receipt*",
-        "Pressure",
-        "Ball Recovery",
-        "Miscontrol",
-        "Duel",
-        "Block",
-        "Dispossessed",
-        "Dribble",
-        "Foul Won",
-        "Foul Committed",
-        "Dribbled Past",
-        "Goal Keeper",
-        "Shot",
-        "Interception",
-        "50/50",
-        "Injury Stoppage",
-        "Clearance",
-    ]
-    if "related_events" in dff.columns:
-        dff = dff.explode("related_events")
-        dff = dff.merge(
-            df[["id", "type"]], left_on="related_events", right_on="id", how="left"
-        )
-        params = {
-            c: "first"
-            for c in dff.columns
-            if c not in ["related_events", "id_x", "id_y", "type_y"]
-        }
-        params["type_y"] = list
-        dff = dff.groupby("id_x").agg(params)
-        for t in typen:
-            dff[f"carry_{t.lower()}_rel"] = dff.type_y.apply(lambda x: t in x)
-    # duration and distance
-    dff["dist"] = dff.apply(get_distance, axis=1)
-    dff["carry_short_dist"] = dff.dist < 5
-    dff["carry_middle_dist"] = (dff.dist < 15) & (dff.dist >= 5)
-    dff["carry_long_dist"] = dff.dist >= 15
-    dff["carry_short_duration"] = dff.duration.astype(float) < 1
-    dff["carry_middle_duration"] = (dff.duration.astype(float) < 5) & (
-        dff.duration.astype(float) >= 1
-    )
-    dff["carry_long_duration"] = dff.duration.astype(float) >= 5
-    params = {
-        "under_pressure": sum,
-        "player": "count",
-        "carry_short_duration": sum,
-        "carry_long_duration": sum,
-        "carry_middle_duration": sum,
-        "carry_short_dist": sum,
-        "carry_long_dist": sum,
-        "carry_middle_dist": sum,
-    }
-    params.update({f"carry_{t.lower()}_rel": sum for t in typen})
+def get_ids(engine: Engine, limit: Optional[int] = None) -> list:
+    """
+    This function gathers all the ids of games
+    and limits the output if indicated
 
-    params = {k: v for k, v in params.items() if k in dff.columns}
-
-    rename = {"under_pressure": "carry_under_pressure", "player": "total_carry"}
-
-    rename = {k: v for k, v in rename.items() if k in dff.columns}
-    
-    return (
-        dff.groupby(["match_id", "minute", "team"])
-        .agg(params)
-        .reset_index(drop=False)
-        .rename(
-            rename, axis=1
-        )
-    )
-
-
-def get_pass_detail(df):
-    msk = df.type == "Pass"
-    dff = pd.concat(
-        [
-            pd.json_normalize(df[msk].content).dropna(axis=1, how="all"),
-            df[msk].reset_index(drop=True),
-        ],
-        axis=1,
-    )
-    typen = [
-        "Clearance",
-        "Ball Receipt*",
-        "Pressure",
-        "Block",
-        "Pass",
-        "Ball Recovery",
-        "Interception",
-        "Goal Keeper",
-        "Duel",
-        "Carry",
-        "Foul Committed",
-        "Foul Won",
-    ]
-    if "related_events" in dff.columns:
-        dff = dff.explode("related_events")
-        dff = dff.merge(
-            df[["id", "type"]], left_on="related_events", right_on="id", how="left"
-        )
-        params = {
-            c: "first"
-            for c in dff.columns
-            if c not in ["related_events", "id_x", "id_y", "type_y"]
-        }
-        params["type_y"] = list
-        dff = dff.groupby("id_x").agg(params)
-
-        for t in typen:
-            dff[f"pass_{t.lower()}_rel"] = dff.type_y.apply(lambda x: t in x)
-    
-    dff["dist"] = dff.apply(get_distance, axis=1)
-
-    body_parts = [
-        "Left Foot",
-        "Right Foot",
-        "Other",
-        "Head",
-        "Keeper Arm",
-        "Drop Kick",
-        "No Touch",
-    ]
-    if "pass_body_part" in dff.columns:
-        for t in body_parts:
-            dff[f"pass_{t.lower()}_bp"] = dff.pass_body_part == t
-
-    pass_heights = ["Ground Pass", "High Pass", "Low Pass"]
-    if "pass_height" in dff.columns:
-        for t in pass_heights:
-            dff[f"pass_{t.lower()}_height"] = dff.pass_height == t
-
-    pass_types = [
-        "Recovery",
-        "Interception",
-        "Kick Off",
-        "Goal Kick",
-        "Corner",
-        "Throw-in",
-        "Free Kick",
-    ]
-    if "pass_type" in dff.columns:
-        for t in pass_types:
-            dff[f"pass_{t.lower()}_type"] = dff.pass_type == t
-
-    pass_outcomes = ["Incomplete", "Out", "Pass Offside", "Unknown", "Injury Clearance"]
-    if "pass_outcome" in dff.columns:
-        for t in pass_outcomes:
-            dff[f"pass_{t.lower()}_outcome"] = dff.pass_outcome == t
-
-    pass_techniques = ["Through Ball", "Straight", "Outswinging", "Inswinging"]
-    if "pass_technique" in dff.columns:
-        for t in pass_techniques:
-            dff[f"pass_{t.lower()}_technique"] = dff.pass_technique == t
-
-    if "pass_angle" in dff.columns:
-        dff["pass_short_angle"] = dff.pass_angle < -2
-        dff["pass_middle_angle"] = (dff.pass_angle < 2) & (dff.pass_angle >= 2)
-        dff["pass_long_angle"] = dff.pass_angle >= 2
-
-    dff["pass_short_duration"] = dff.duration.astype(float) < 0.5
-    dff["pass_middle_duration"] = (dff.duration.astype(float) < 2) & (
-        dff.duration.astype(float) >= 0.5
-    )
-    dff["pass_long_duration"] = dff.duration.astype(float) >= 2
-
-    if "pass_length" in dff.columns:
-        dff["pass_short_length"] = dff.pass_length.astype(float) < 15
-        dff["pass_middle_length"] = (dff.pass_length.astype(float) < 30) & (
-            dff.pass_length.astype(float) >= 15
-        )
-        dff["pass_long_length"] = dff.pass_length.astype(float) >= 30
-
-    params = {
-        "counterpress": sum,
-        "under_pressure": sum,
-        "player": "count",
-        "pass_short_duration": sum,
-        "pass_long_duration": sum,
-        "pass_middle_duration": sum,
-        "pass_short_angle": sum,
-        "pass_long_angle": sum,
-        "pass_middle_angle": sum,
-        "pass_short_length": sum,
-        "pass_long_length": sum,
-        "pass_middle_length": sum,
-        "pass_backheel": sum,
-        "pass_aerial_won": sum,
-        "pass_assisted_shot_id": "count",
-        "pass_cross": sum,
-        "pass_cut_back": sum,
-        "pass_miscommunication": sum,
-        "pass_shot_assist": sum,
-        "pass_switch": sum,
-        "pass_deflected": sum,
-        "pass_no_touch": sum,
-    }
-    params.update({f"pass_{t.lower()}_rel": sum for t in typen})
-    params.update({f"pass_{t.lower()}_bp": sum for t in body_parts})
-    params.update({f"pass_{t.lower()}_height": sum for t in pass_heights})
-    params.update({f"pass_{t.lower()}_type": sum for t in pass_types})
-    params.update({f"pass_{t.lower()}_outcome": sum for t in pass_outcomes})
-    params.update({f"pass_{t.lower()}_technique": sum for t in pass_techniques})
-
-    params = {k: v for k, v in params.items() if k in dff.columns}
-
-    rename = {
-                "counterpress": "pass_counterpress",
-                "under_pressure": "pass_under_pressure",
-                "player": "total_pass",
-                "pass_assisted_shot_id": "pass_assist",
-            }
-
-    rename = {k: v for k, v in rename.items() if k in dff.columns}
-
-    return (
-        dff.groupby(["match_id", "minute", "team"])
-        .agg(params)
-        .reset_index(drop=False)
-        .rename(
-            rename,
-            axis=1,
-        )
-    )
-
-
-def get_ids(engine, limit=None):
+    Input:  engine: The engine for the connection to the postgres database
+            limit:  The maximum number of games
+    Output: ids:    A list of all ids of the games
+    """
+    # specify the query
     QUERY = "SELECT match_id FROM master_thesis.materialized_view_raw_data_match"
+    # connect to the db and get the ids
     with engine.connect() as conn:
         ids = pd.read_sql(QUERY, conn).match_id.tolist()
+
+    # if the input indicates limit the output
     if limit:
         return ids[:limit]
+
     return ids
 
 
 @ray.remote
-def get_raw_data(id):
+def get_raw_data(id: str) -> pd.DataFrame:
+    """
+    This function gathers all the data for one game based on the games id
+    The raw data is loaded from the postgres database
+    and for all types the events will be counted
+
+    Input:  id:     The id to indicate the game
+    Output: ret_df: The DataFrame containing all the data
+    """
+    # specify the query to gather the raw data from the database
     QUERY = f"SELECT * FROM master_thesis.raw_data WHERE match_id={id}"
+    # connect to the database and read the data
     with create_engine(
         f'postgresql://{config.get("user")}:{config.get("password")}@{config.get("host")}:{config.get("port")}/{config.get("database")}'
     ).connect() as conn:
         df = pd.read_sql(QUERY, conn)
+
+    # due to storing strings "nan" should be exchanged w/ np.nan
     df["content"] = df.content.apply(lambda x: x.replace("nan", "np.nan"))
     df["content"] = df.content.apply(eval)
+
+    # Due to a different Type of Carry storage this needs to be exchanged
     df["type"] = df.type.replace("Carries", "Carry")
-    recovery_df = get_recoveries_detail(df)
-    carry_df = get_carries_details(df)
-    pass_df = get_pass_detail(df)
-    return recovery_df.merge(
-        carry_df, on=["match_id", "minute", "team"], how="outer"
-    ).merge(pass_df, on=["match_id", "minute", "team"], how="outer")
+
+    # set up the return df
+    # TODO: Here one might add all ids cross joined with all teams with all minutes of the game respecitively
+    ret_df = pd.DataFrame({"match_id": [], "team": [], "minute": []})
+
+    # for all available types calculate the number of actions
+    for t, d in detail.items():
+        ret_df = ret_df.merge(
+            get_details(
+                df,
+                t,
+                d.get("typen"),
+                d.get("dist"),
+                d.get("dummies"),
+                d.get("categories"),
+                d.get("params"),
+                d.get("rename"),
+            ),
+            on=["match_id", "minute", "team"],
+            how="outer",
+        )
+
+    return ret_df
 
 
-def get_db_df(config):
+def get_db_df(config: dict) -> pd.DataFrame:
+    """
+    This function concats all the information for the single games into one DataFrame
+
+    Input:  config: The config file to connect to the database
+    Output: df:     The DataFrame containing all the information
+    """
+    # create the engine
     engine = create_engine(
         f'postgresql://{config.get("user")}:{config.get("password")}@{config.get("host")}:{config.get("port")}/{config.get("database")}'
     )
-    df = pd.concat(ray.get([get_raw_data.remote(id) for id in get_ids(engine, limit=20)]))
+    # concat all the information
+    df = pd.concat(
+        ray.get([get_raw_data.remote(id) for id in get_ids(engine, limit=200)])
+    )
+
     return df
 
 
-def main():
+def main() -> None:
+    """
+    The main function just calls get_db_df
+    """
     df = get_db_df(config)
+    # TODO: Write the information to a table in the database
     print(df)
+
 
 if __name__ == "__main__":
     main()
