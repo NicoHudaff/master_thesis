@@ -5,7 +5,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import json
 from typing import Optional
+from statsbombpy import sb
 from math import sqrt
+import warnings
+
+# don't show warnings
+warnings.filterwarnings("ignore")
 
 with open("./config.json") as config_file:
     config = json.load(config_file)
@@ -15,6 +20,78 @@ with open("./detail_instructions.json") as detail_file:
 
 pandarallel.initialize()
 ray.init(log_to_driver=False, num_cpus=7)
+
+
+def get_home_away_information() -> pd.DataFrame:
+    """
+    This function will gather information about the games and its home and away teams
+
+    Output:     A DataFrame with information regarding the games and their home and away teams
+    """
+    # first of all gather all leagues and seasons of that leagues that have available data
+    available_data = (
+        sb.competitions().groupby("competition_id").season_id.apply(list).to_dict()
+    )
+
+    # loop over all available seasons to gather the game ids in connection with the teams.
+    # Since it might return an error only partial list comprehension is possible here.
+    matches = []
+    for k, v in available_data.items():
+
+        try:
+            add = [
+                sb.matches(competition_id=k, season_id=w)[
+                    ["home_team", "away_team", "match_id"]
+                ]
+                for w in v
+            ]
+            matches += add
+
+        except AttributeError:
+
+            for w in v:
+                try:
+                    matches += [
+                        sb.matches(competition_id=k, season_id=w)[
+                            ["home_team", "away_team", "match_id"]
+                        ]
+                    ]
+
+                except AttributeError:
+                    pass
+
+    # concat the results
+    df = pd.concat(matches)
+
+    # seperate the home and away teams and mark them with home or away
+    home = df[["match_id", "home_team"]].rename({"home_team": "team"}, axis=1)
+    away = df[["match_id", "away_team"]].rename({"away_team": "team"}, axis=1)
+    home["home_away"] = "home"
+    away["home_away"] = "away"
+
+    # concat home and away dfs
+    return pd.concat([home, away])
+
+
+def add_anomaly_home_away(x: pd.core.series.Series) -> str:
+    """
+    This function will add the home and away information for the Hoffenheim - Bayern game
+    Hoffenheim is home and Bayern is away
+    If it is not the anomaly game the original home_away information will be returned
+
+    Input:  x:  A column of the DataFrame regarding one minute of one game and one team
+    Output:     Home or away information regarding that game and that team
+    """
+    # if anomaly game and Hoffenheim is the game home will be returned
+    if str(x["home_away"]) == "nan" and x["team"] == "Hoffenheim":
+        return "home"
+
+    # if anomaly game and Bayern is the game away will be returned
+    elif str(x["home_away"]) == "nan":
+        return "away"
+
+    # else the original information will be returned
+    return x["home_away"]
 
 
 def get_distance(x: pd.core.series.Series) -> float:
@@ -326,16 +403,56 @@ def get_db_df(config: dict) -> pd.DataFrame:
     # concat all the information
     df = pd.concat(ray.get([get_raw_data.remote(id) for id in get_ids(engine)]))
 
+    # replace True with ones and NaNs with 0s
+    df = df.replace(True, 1).fillna(0)
+
+    # merge the home and away information onto the df
+    df = df.merge(get_home_away_information(), how="left", on=["match_id", "team"])
+    df["home_away"] = df.apply(add_anomaly_home_away, axis=1)
+
     return df
+
+
+def write_data_to_db(df: pd.DataFrame) -> None:
+    """
+    This function will format the DataFrame and write it to the table of the Database
+
+    Input:  df: The information that should be written to the DB
+    """
+    # format the dataframe such that it can be written in the Table of the DB easily
+    df_ret = df[["match_id", "minute", "period", "home_away"]]
+    df_ret["content"] = df[
+        [
+            c
+            for c in df.columns
+            if c not in ["match_id", "minute", "period", "home_away", "team"]
+        ]
+    ].to_dict("records")
+    df_ret["content"] = df_ret.content.astype(str)
+    df_ret["period"] = df_ret.period.astype(int)
+
+    # create the engine
+    engine = create_engine(
+        f'postgresql://{config.get("user")}:{config.get("password")}@{config.get("host")}:{config.get("port")}/{config.get("database")}'
+    )
+
+    # write the information to the table
+    with engine.connect() as conn:
+        df_ret.to_sql(
+            "data_minutes",
+            conn,
+            schema="master_thesis",
+            if_exists="append",
+            index=False,
+            chunksize=100,
+        )
 
 
 def main() -> None:
     """
-    The main function just calls get_db_df
+    The main function just calls get_db_df and write the information to the database
     """
-    df = get_db_df(config)
-    # TODO: Write the information to a table in the database
-    print(df)
+    write_data_to_db(get_db_df(config))
 
 
 if __name__ == "__main__":
