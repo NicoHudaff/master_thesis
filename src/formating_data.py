@@ -27,7 +27,11 @@ def get_distance(x: pd.core.series.Series) -> float:
     Output:     The distance between the points
     """
     # the end Location is in one of these columns
-    end_locs = [l for l in ["end_location", "carry_end_location", "shot_end_location"] if l in x.keys()]
+    end_locs = [
+        l
+        for l in ["end_location", "carry_end_location", "shot_end_location"]
+        if l in x.keys()
+    ]
 
     # if no column is available then None can be returned
     if len(end_locs) == 0:
@@ -36,16 +40,16 @@ def get_distance(x: pd.core.series.Series) -> float:
     # else we take the first entry and if a z coordinate is also available it will be used
     elif len(x[end_locs[0]]) >= 3:
         return sqrt(
-                (x[end_locs[0]][0] - x["location"][0]) ** 2
-                + (x[end_locs[0]][1] - x["location"][1]) ** 2
-                + (x[end_locs[0]][2]) ** 2
-            )
+            (x[end_locs[0]][0] - x["location"][0]) ** 2
+            + (x[end_locs[0]][1] - x["location"][1]) ** 2
+            + (x[end_locs[0]][2]) ** 2
+        )
 
     # else w/o a z coordinate
     return sqrt(
-            (x[end_locs[0]][0] - x["location"][0]) ** 2
-            + (x[end_locs[0]][1] - x["location"][1]) ** 2
-        )
+        (x[end_locs[0]][0] - x["location"][0]) ** 2
+        + (x[end_locs[0]][1] - x["location"][1]) ** 2
+    )
 
 
 def get_details(
@@ -87,7 +91,7 @@ def get_details(
     )
 
     if dff.empty or len(dff) == 0:
-        return pd.DataFrame(columns=["match_id", "minute", "team"])
+        return pd.DataFrame(columns=["match_id", "minute", "team", "period"])
 
     # calculate how many related events are there
     if "related_events" in dff.columns and rel_events:
@@ -165,7 +169,7 @@ def get_details(
 
     # count via a groupby
     return (
-        dff.groupby(["match_id", "minute", "team"])
+        dff.groupby(["match_id", "minute", "period", "team"])
         .agg(params)
         .reset_index(drop=False)
         .rename(
@@ -224,7 +228,7 @@ def get_raw_data(id: str) -> pd.DataFrame:
 
     # set up the return df
     # TODO: Here one might add all ids cross joined with all teams with all minutes of the game respecitively
-    ret_df = pd.DataFrame({"match_id": [], "team": [], "minute": []})
+    ret_df = pd.DataFrame({"match_id": [], "team": [], "minute": [], "period": []})
 
     # for all available types calculate the number of actions
     for t, d in detail.items():
@@ -242,7 +246,7 @@ def get_raw_data(id: str) -> pd.DataFrame:
         if (not add.empty) and (len(add) != 0):
             ret_df = ret_df.merge(
                 add,
-                on=["match_id", "minute", "team"],
+                on=["match_id", "minute", "period", "team"],
                 how="outer",
             )
 
