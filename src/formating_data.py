@@ -39,8 +39,12 @@ def get_distance(x: pd.core.series.Series) -> float:
                 (x["end_location"][0] - x["location"][0]) ** 2
                 + (x["end_location"][1] - x["location"][1]) ** 2
             )
+        # or in "shot_end_location"
         except:
-            return None
+            try:
+                return sqrt((x["shot_end_location"][0] - x["location"][0]) ** 2 + (x["shot_end_location"][1] - x["location"][1]) ** 2 + (x["shot_end_location"][2]) **2)
+            except:
+                return None
 
 
 def get_details(
@@ -48,6 +52,7 @@ def get_details(
     type_msk: str,
     rel_events: list,
     dist: bool,
+    height: bool,
     dummies: list,
     categories: dict,
     params: dict,
@@ -63,6 +68,7 @@ def get_details(
             type_msk:   The type for the analysis should be done
             rel_events: A list of all events that might be related to an action of this type
             dist:       Boolean value whether the distance should be calculated based on the locations
+            height:     Boolean value whether the height should be calculated based on the locations
             dummies:    A list of columns for which a dummy columns should be added
             categories: A dictionary indicating which cols can put into categories (long, middle, short)
                         And what the threshholds are
@@ -78,6 +84,9 @@ def get_details(
         ],
         axis=1,
     )
+
+    if dff.empty or len(dff) == 0:
+        return pd.DataFrame(columns=["match_id", "minute", "team"])
 
     # calculate how many related events are there
     if "related_events" in dff.columns and rel_events:
@@ -102,7 +111,11 @@ def get_details(
 
     # if the input indicates it calculate the distance
     if dist:
-        dff["dist"] = dff.apply(get_distance, axis=1)
+        dff[f"{type_msk.lower()}_dist"] = dff.apply(get_distance, axis=1)
+
+    # if the input indicates it calculate the distance
+    if height:
+        dff[f"{type_msk.lower()}_height"] = dff.shot_end_location.apply(lambda x: x[2] if isinstance(x, list) and len(x) >= 3 else None)
 
     # if the input indicates calculate for the columns dummy columns
     if dummies:
@@ -119,11 +132,11 @@ def get_details(
         for col, thresh in {
             k: v for k, v in categories.items() if k in dff.columns
         }.items():
-            dff[f"short_{col}"] = dff[col].astype(float) < thresh[0]
-            dff[f"middle_{col}"] = (dff[col].astype(float) < thresh[1]) & (
+            dff[f"{type_msk.lower()}_short_{col}"] = dff[col].astype(float) < thresh[0]
+            dff[f"{type_msk.lower()}_middle_{col}"] = (dff[col].astype(float) < thresh[1]) & (
                 dff[col].astype(float) >= thresh[0]
             )
-            dff[f"long_{col}"] = dff[col].astype(float) >= thresh[1]
+            dff[f"{type_msk.lower()}_long_{col}"] = dff[col].astype(float) >= thresh[1]
 
     # update the counting for all added columns in the previous processes
     params.update({f"{type_msk.lower()}_{t.lower()}_rel": sum for t in rel_events})
@@ -132,7 +145,7 @@ def get_details(
     if categories:
         params.update(
             {
-                f"{length}_{col}": sum
+                f"{type_msk.lower()}_{length}_{col}": sum
                 for col in categories.keys()
                 for length in ["short", "middle", "long"]
             }
@@ -212,22 +225,25 @@ def get_raw_data(id: str) -> pd.DataFrame:
 
     # for all available types calculate the number of actions
     for t, d in detail.items():
-        ret_df = ret_df.merge(
-            get_details(
+        add = get_details(
                 df,
                 t,
                 d.get("typen"),
                 d.get("dist"),
+                d.get("height"),
                 d.get("dummies"),
                 d.get("categories"),
                 d.get("params"),
                 d.get("rename"),
-            ),
-            on=["match_id", "minute", "team"],
-            how="outer",
-        )
+            )
+        if (not add.empty) and (len(add) != 0):
+            ret_df = ret_df.merge(
+                add,
+                on=["match_id", "minute", "team"],
+                how="outer",
+            )
 
-    return ret_df
+    return ret_df.reset_index(drop=True)
 
 
 def get_db_df(config: dict) -> pd.DataFrame:
@@ -243,7 +259,7 @@ def get_db_df(config: dict) -> pd.DataFrame:
     )
     # concat all the information
     df = pd.concat(
-        ray.get([get_raw_data.remote(id) for id in get_ids(engine, limit=200)])
+        ray.get([get_raw_data.remote(id) for id in get_ids(engine, limit=200)]) # TODO remove the limit
     )
 
     return df

@@ -15,6 +15,7 @@
             "Foul Won"
         ],
         "dist": false,
+        "height": false,
         "dummies": [
             "pass_body_part",
             "pass_height",
@@ -62,6 +63,7 @@
             "Pressure"
         ],
         "dist": false,
+        "height": false,
         "dummies": false,
         "categories": false,
         "params": {
@@ -97,6 +99,7 @@
             "Clearance"
         ],
         "dist": true,
+        "height": false,
         "dummies": false,
         "categories": {
             "dist": [
@@ -114,5 +117,453 @@
         "rename": {
             "under_pressure": "carry_under_pressure"
         }
+    },
+    "Ball Receipt*": {
+        "typen": [
+            "Pass",
+            "Pressure",
+            "Duel"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "ball_receipt_outcome"
+        ],
+        "categories": false,
+        "params": {
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "under_pressure": "ball_receipt_under_pressure"
+        }
+    },
+    "Miscontrol": {
+        "typen": [
+            "Pressure",
+            "Duel"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": {
+            "duration": [
+                0.5,
+                1
+            ]
+        },
+        "params": {
+            "under_pressure": "sum",
+            "miscontrol_aerial_won": "sum",
+            "out": "sum"
+        },
+        "rename": {
+            "under_pressure": "miscontrol_under_pressure",
+            "out": "miscontrol_out"
+        }
+    },
+    "Block": {
+        "typen": [
+            "Shot",
+            "Pass",
+            "Pressure",
+            "Carry",
+            "Clearance",
+            "Interception"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": {
+            "duration": [
+                0.5,
+                1
+            ]
+        },
+        "params": {
+            "block_offensive": "sum",
+            "counterpress": "sum",
+            "out": "sum",
+            "under_pressure": "sum",
+            "block_save_block": "sum",
+            "block_deflection": "sum"
+        },
+        "rename": {
+            "counterpress": "block_counterpress",
+            "out": "block_out",
+            "under_pressure": "block_under_pressure"
+        }
+    },
+    "Pressure": {
+        "typen": [
+            "Carry",
+            "Dribble",
+            "Pass",
+            "Ball Receipt*",
+            "Shot",
+            "Foul Won",
+            "Dispossessed",
+            "Miscontrol",
+            "Ball Recovery",
+            "Camera On",
+            "Foul Committed",
+            "Clearance",
+            "Interception",
+            "Pressure",
+            "Camera off",
+            "Error",
+            "Shield",
+            "Player On",
+            "Goal Keeper",
+            "Block",
+            "Duel",
+            "50/50",
+            "Dribbled Past",
+            "Tactical Shift",
+            "Offside"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": {
+            "duration": [
+                0.5,
+                1
+            ]
+        },
+        "params": {
+            "counterpress": "sum",
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "counterpress": "pressure_counterpress",
+            "under_pressure": "pressure_under_pressure"
+        }
+    },
+    "Dribbled Past": {
+        "typen": [
+            "Carry",
+            "Dribble",
+            "Pressure"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {
+            "counterpress": "sum",
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "counterpress": "dribbled_past_counterpress",
+            "under_pressure": "dribbled_past_under_pressure"
+        }
+    },
+    "Dribble": {
+        "typen": [
+            "Dribbled Past",
+            "Duel",
+            "Pressure",
+            "Goal Keeper"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "dribble_outcome"
+        ],
+        "categories": {
+            "duration": [
+                0.1,
+                0.5
+            ]
+        },
+        "params": {
+            "dribble_nutmeg": "sum",
+            "dribble_overrun": "sum",
+            "out": "sum",
+            "dribble_no_touch": "sum"
+        },
+        "rename": {
+            "out": "dribble_out"
+        }
+    },
+    "Shot": {
+        "typen": [
+            "Goal Keeper",
+            "Pressure",
+            "Block",
+            "Duel"
+        ],
+        "dist": true,
+        "height": true,
+        "dummies": [
+            "shot_body_part",
+            "shot_outcome",
+            "shot_technique",
+            "shot_type"
+        ],
+        "categories": {
+            "duration": [
+                0.75,
+                1.25
+            ],
+            "shot_statsbomb_xg": [
+                0.1,
+                0.3
+            ],
+            "dist": [
+                10,
+                25
+            ],
+            "height": [
+                0.5,
+                1.5
+            ]
+        },
+        "params": {
+            "out": "sum",
+            "shot_first_time": "sum",
+            "shot_key_pass_id": "count",
+            "under_pressure": "sum",
+            "shot_aerial_won": "sum",
+            "shot_deflected": "sum",
+            "shot_one_on_one": "sum",
+            "shot_open_goal": "sum",
+            "shot_follows_dribble": "sum",
+            "shot_saved_off_target": "sum",
+            "shot_redirect": "sum",
+            "shot_saved_to_post": "sum"
+        },
+        "rename": {
+            "out": "shot_out",
+            "under_pressure": "shot_under_pressure"
+        }
+    },
+    "Goal Keeper": {
+        "typen": [
+            "Shot",
+            "Pass",
+            "Pressure",
+            "Dispossessed",
+            "Dribble"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "goalkeeper_body_part",
+            "goalkeeper_outcome",
+            "goalkeeper_technique",
+            "goalkeeper_type",
+            "goalkeeper_position"
+        ],
+        "categories": false,
+        "params": {
+            "under_pressure": "sum",
+            "out": "sum",
+            "goalkeeper_shot_saved_off_target": "sum",
+            "goalkeeper_punched_out": "sum",
+            "goalkeeper_shot_saved_to_post": "sum",
+            "goalkeeper_success_in_play": "sum",
+            "goalkeeper_lost_out": "sum"
+        },
+        "rename": {
+            "under_pressure": "gk_under_pressure",
+            "out": "gk_out"
+        }
+    },
+    "Clearance": {
+        "typen": [
+            "Pass",
+            "Duel",
+            "Pressure",
+            "Block"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "clearance_body_part"
+        ],
+        "categories": false,
+        "params": {
+            "clearance_aerial_won": "sum",
+            "out": "sum",
+            "clearance_other": "sum"
+        },
+        "rename": {
+            "out": "clearance_out"
+        }
+    },
+    "Duel": {
+        "typen": [
+            "Dispossessed",
+            "Pass",
+            "Clearance",
+            "Dribble",
+            "Shot",
+            "Miscontrol",
+            "Carry",
+            "Ball Receipt*",
+            "Pressure"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "duel_outcome",
+            "duel_type"
+        ],
+        "categories": false,
+        "params": {
+            "counterpress": "sum"
+        },
+        "rename": {
+            "counterpress": "duel_counterpress"
+        }
+    },
+    "Dispossessed": {
+        "typen": [
+            "Duel",
+            "Pressure",
+            "Goal Keeper"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {},
+        "rename": {}
+    },
+    "Interception": {
+        "typen": [
+            "Pass",
+            "Pressure",
+            "Carry",
+            "Block"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "interception_outcome"
+        ],
+        "categories": false,
+        "params": {
+            "counterpress": "sum",
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "counterpress": "interception_counterpress",
+            "under_pressure": "interception_under_pressure"
+        }
+    },
+    "Shield": {
+        "typen": [
+            "Pressure"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "under_pressure": "shield_under_pressure"
+        }
+    },
+    "Foul Committed": {
+        "typen": [
+            "Carry",
+            "Foul Won",
+            "Pass",
+            "Pressure"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": [
+            "foul_committed_card",
+            "foul_committed_type"
+        ],
+        "categories": false,
+        "params": {
+            "counterpress": "sum",
+            "foul_committed_advantage": "sum",
+            "under_pressure": "sum",
+            "foul_committed_offensive": "sum",
+            "foul_committed_penalty": "sum"
+        },
+        "rename": {
+            "counterpress": "foul_c_counterpress",
+            "under_pressure": "foul_c_under_pressure"
+        }
+    },
+    "Foul Won": {
+        "typen": [
+            "Foul Committed",
+            "Pressure",
+            "Pass"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {
+            "foul_won_advantage": "sum",
+            "foul_won_defensive": "sum",
+            "under_pressure": "sum",
+            "foul_won_penalty": "sum"
+        },
+        "rename": {
+            "under_pressure": "foul_w_under_pressure"
+        }
+    },
+    "Offside": {
+        "typen": ["Pressure"],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "under_pressure": "offside_under_pressure"
+        }
+    },
+    "Error": {
+        "typen": [
+            "Pressure"
+        ],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "under_pressure": "error_under_pressure"
+        }
+    },
+    "50/50": {
+        "typen": ["50/50", "Carry", "Pressure"],
+        "dist": false,
+        "height": false,
+        "dummies": ["50_50.outcome.name"],
+        "categories": false,
+        "params": {
+            "counterpress": "sum",
+            "under_pressure": "sum"
+        },
+        "rename": {
+            "counterpress": "50_50_counterpress",
+            "under_pressure": "50_50_under_pressure"
+        }
+    },
+    "Own Goal For": {
+        "typen": ["Own Goal Against"],
+        "dist": false,
+        "height": false,
+        "dummies": false,
+        "categories": false,
+        "params": {},
+        "rename": {}
     }
 }
