@@ -42,7 +42,11 @@ def get_distance(x: pd.core.series.Series) -> float:
         # or in "shot_end_location"
         except:
             try:
-                return sqrt((x["shot_end_location"][0] - x["location"][0]) ** 2 + (x["shot_end_location"][1] - x["location"][1]) ** 2 + (x["shot_end_location"][2]) **2)
+                return sqrt(
+                    (x["shot_end_location"][0] - x["location"][0]) ** 2
+                    + (x["shot_end_location"][1] - x["location"][1]) ** 2
+                    + (x["shot_end_location"][2]) ** 2
+                )
             except:
                 return None
 
@@ -115,7 +119,9 @@ def get_details(
 
     # if the input indicates it calculate the distance
     if height:
-        dff[f"{type_msk.lower()}_height"] = dff.shot_end_location.apply(lambda x: x[2] if isinstance(x, list) and len(x) >= 3 else None)
+        dff[f"{type_msk.lower()}_height"] = dff.shot_end_location.apply(
+            lambda x: x[2] if isinstance(x, list) and len(x) >= 3 else None
+        )
 
     # if the input indicates calculate for the columns dummy columns
     if dummies:
@@ -133,9 +139,9 @@ def get_details(
             k: v for k, v in categories.items() if k in dff.columns
         }.items():
             dff[f"{type_msk.lower()}_short_{col}"] = dff[col].astype(float) < thresh[0]
-            dff[f"{type_msk.lower()}_middle_{col}"] = (dff[col].astype(float) < thresh[1]) & (
-                dff[col].astype(float) >= thresh[0]
-            )
+            dff[f"{type_msk.lower()}_middle_{col}"] = (
+                dff[col].astype(float) < thresh[1]
+            ) & (dff[col].astype(float) >= thresh[0])
             dff[f"{type_msk.lower()}_long_{col}"] = dff[col].astype(float) >= thresh[1]
 
     # update the counting for all added columns in the previous processes
@@ -226,16 +232,16 @@ def get_raw_data(id: str) -> pd.DataFrame:
     # for all available types calculate the number of actions
     for t, d in detail.items():
         add = get_details(
-                df,
-                t,
-                d.get("typen"),
-                d.get("dist"),
-                d.get("height"),
-                d.get("dummies"),
-                d.get("categories"),
-                d.get("params"),
-                d.get("rename"),
-            )
+            df,
+            t,
+            d.get("typen"),
+            d.get("dist"),
+            d.get("height"),
+            d.get("dummies"),
+            d.get("categories"),
+            d.get("params"),
+            d.get("rename"),
+        )
         if (not add.empty) and (len(add) != 0):
             ret_df = ret_df.merge(
                 add,
@@ -259,7 +265,9 @@ def get_db_df(config: dict) -> pd.DataFrame:
     )
     # concat all the information
     df = pd.concat(
-        ray.get([get_raw_data.remote(id) for id in get_ids(engine, limit=200)]) # TODO remove the limit
+        ray.get(
+            [get_raw_data.remote(id) for id in get_ids(engine, limit=200)]
+        )  # TODO remove the limit
     )
 
     return df
