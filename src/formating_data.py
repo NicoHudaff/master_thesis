@@ -80,7 +80,6 @@ def get_details(
             params:     A dictionary indicating how each columns should be counted ("count" or sum)
             rename:     A dictionary which purpose it is to rename some columns in the final df
     """
-    # TODO add the location as well as a type
     # maybe middle first third or last third
 
     # get all events for the specific type
@@ -95,6 +94,15 @@ def get_details(
 
     if dff.empty or len(dff) == 0:
         return pd.DataFrame(columns=["match_id", "minute", "team", "period"])
+
+    # add the location roughly
+    if "location" in dff.columns:
+        dff["x_loc"] = dff.location.apply(
+            lambda x: x[0] if isinstance(x, list) and len(x) > 1 else None
+        )
+        dff[f"{type_msk.lower()}_middle"] = (dff.x_loc >= 40) & (dff.x_loc < 80)
+        dff[f"{type_msk.lower()}_first"] = dff.x_loc < 40
+        dff[f"{type_msk.lower()}_third"] = dff.x_loc >= 80
 
     # calculate how many related events are there
     if "related_events" in dff.columns and rel_events:
@@ -137,7 +145,6 @@ def get_details(
             dff = pd.concat([df_dummies, dff], axis=1)
 
     # if the input indicates calculate for the columns the number of short, middle and longs
-    # TODO: Here something seems to be broken
     if categories:
         for col, thresh in {
             k: v for k, v in categories.items() if k in dff.columns
@@ -161,7 +168,14 @@ def get_details(
             }
         )
     # add this column to count the total numbers
-    params["player"] = "count"
+    params.update(
+        {
+            "player": "count",
+            f"{type_msk.lower()}_middle": sum,
+            f"{type_msk.lower()}_first": sum,
+            f"{type_msk.lower()}_third": sum,
+        }
+    )
     rename["player"] = f"total_{type_msk.lower()}"
 
     # only use the cols that are in the df and replace the string "sum" w/ the function sum
@@ -310,11 +324,7 @@ def get_db_df(config: dict) -> pd.DataFrame:
         f'postgresql://{config.get("user")}:{config.get("password")}@{config.get("host")}:{config.get("port")}/{config.get("database")}'
     )
     # concat all the information
-    df = pd.concat(
-        ray.get(
-            [get_raw_data.remote(id) for id in get_ids(engine, limit=20)]
-        )  # TODO remove the limit
-    )
+    df = pd.concat(ray.get([get_raw_data.remote(id) for id in get_ids(engine)]))
 
     return df
 
