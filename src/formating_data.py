@@ -26,29 +26,26 @@ def get_distance(x: pd.core.series.Series) -> float:
     Input:  x:  The row of a DataFrame, where the locations are stored
     Output:     The distance between the points
     """
-    # The end_location could be saved in "carry_end_location"
-    try:
+    # the end Location is in one of these columns
+    end_locs = [l for l in ["end_location", "carry_end_location", "shot_end_location"] if l in x.keys()]
+
+    # if no column is available then None can be returned
+    if len(end_locs) == 0:
+        return None
+
+    # else we take the first entry and if a z coordinate is also available it will be used
+    elif len(x[end_locs[0]]) >= 3:
         return sqrt(
-            (x["carry_end_location"][0] - x["location"][0]) ** 2
-            + (x["carry_end_location"][1] - x["location"][1]) ** 2
-        )
-    # or in "end_location"
-    except:
-        try:
-            return sqrt(
-                (x["end_location"][0] - x["location"][0]) ** 2
-                + (x["end_location"][1] - x["location"][1]) ** 2
+                (x[end_locs[0]][0] - x["location"][0]) ** 2
+                + (x[end_locs[0]][1] - x["location"][1]) ** 2
+                + (x[end_locs[0]][2]) ** 2
             )
-        # or in "shot_end_location"
-        except:
-            try:
-                return sqrt(
-                    (x["shot_end_location"][0] - x["location"][0]) ** 2
-                    + (x["shot_end_location"][1] - x["location"][1]) ** 2
-                    + (x["shot_end_location"][2]) ** 2
-                )
-            except:
-                return None
+
+    # else w/o a z coordinate
+    return sqrt(
+            (x[end_locs[0]][0] - x["location"][0]) ** 2
+            + (x[end_locs[0]][1] - x["location"][1]) ** 2
+        )
 
 
 def get_details(
