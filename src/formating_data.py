@@ -226,9 +226,47 @@ def get_raw_data(id: str) -> pd.DataFrame:
     # Due to a different Type of Carry storage this needs to be exchanged
     df["type"] = df.type.replace("Carries", "Carry")
 
-    # set up the return df
-    # TODO: Here one might add all ids cross joined with all teams with all minutes of the game respecitively
-    ret_df = pd.DataFrame({"match_id": [], "team": [], "minute": [], "period": []})
+    # set up the return df w/ all minutes and teams and periods and match Ids
+    QUERY = """
+        SELECT
+            m.*,
+            t.team
+        FROM
+        (
+                (
+                    SELECT
+                        MAX(minute) AS max_min,
+                        MIN(minute) AS min_min,
+                        match_id,
+                        period
+                    FROM
+                        master_thesis.raw_data
+                    GROUP BY
+                        match_id,
+                        period
+                ) m
+                LEFT JOIN (
+                    SELECT
+                        team,
+                        match_id
+                    FROM
+                        master_thesis.raw_data
+                    GROUP BY
+                        match_id,
+                        team
+                ) t ON t.match_id = m.match_id
+            )
+    """
+    with create_engine(
+        f'postgresql://{config.get("user")}:{config.get("password")}@{config.get("host")}:{config.get("port")}/{config.get("database")}'
+    ).connect() as conn:
+        ret_df = pd.read_sql(QUERY, conn)
+    ret_df["minute"] = ret_df.apply(
+        lambda x: list(range(int(x["min_min"]), int(x["max_min"]) + 1)), axis=1
+    )
+    ret_df = ret_df.explode("minute")[
+        ["match_id", "minute", "period", "team"]
+    ].reset_index(drop=True)
 
     # for all available types calculate the number of actions
     for t, d in detail.items():
