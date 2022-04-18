@@ -80,6 +80,9 @@ def get_details(
             params:     A dictionary indicating how each columns should be counted ("count" or sum)
             rename:     A dictionary which purpose it is to rename some columns in the final df
     """
+    # TODO add the location as well as a type
+    # maybe middle first third or last third
+
     # get all events for the specific type
     msk = df.type == type_msk
     dff = pd.concat(
@@ -227,7 +230,7 @@ def get_raw_data(id: str) -> pd.DataFrame:
     df["type"] = df.type.replace("Carries", "Carry")
 
     # set up the return df w/ all minutes and teams and periods and match Ids
-    QUERY = """
+    QUERY = f"""
         SELECT
             m.*,
             t.team
@@ -241,9 +244,11 @@ def get_raw_data(id: str) -> pd.DataFrame:
                         period
                     FROM
                         master_thesis.raw_data
+                    WHERE
+                        match_id={id}
                     GROUP BY
-                        match_id,
-                        period
+                        period,
+                        match_id
                 ) m
                 LEFT JOIN (
                     SELECT
@@ -251,9 +256,11 @@ def get_raw_data(id: str) -> pd.DataFrame:
                         match_id
                     FROM
                         master_thesis.raw_data
+                    WHERE
+                        match_id={id}
                     GROUP BY
-                        match_id,
-                        team
+                        team,
+                        match_id
                 ) t ON t.match_id = m.match_id
             )
     """
@@ -305,7 +312,7 @@ def get_db_df(config: dict) -> pd.DataFrame:
     # concat all the information
     df = pd.concat(
         ray.get(
-            [get_raw_data.remote(id) for id in get_ids(engine, limit=200)]
+            [get_raw_data.remote(id) for id in get_ids(engine, limit=20)]
         )  # TODO remove the limit
     )
 
