@@ -1,0 +1,1 @@
+CREATE INDEX index_raw_data_match ON master_thesis.raw_data (match_id);
