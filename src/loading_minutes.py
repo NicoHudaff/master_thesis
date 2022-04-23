@@ -25,11 +25,11 @@ conn = create_engine(
 
 # @ray.remote
 def get_data_minutes(id: int) -> pd.DataFrame:
-    '''
+    """
     This function will gather information about the games and will group by more than one minute
 
     Input:  id: The id of the game
-    '''
+    """
     # query to select all information about the home and away data
     QUERY = f"""
         SELECT
@@ -69,12 +69,12 @@ def get_data_minutes(id: int) -> pd.DataFrame:
 
     # execute the query
     df = pd.read_sql(QUERY, conn)
-    
+
     # put string in dict from content
     for col in ["home_content", "away_content"]:
         df[col] = df[col].apply(lambda x: x.replace("nan", "np.nan"))
         df[col] = df[col].apply(eval)
-    
+
     # unpack the dictionary values
     home_content = pd.json_normalize(df.home_content)
     away_content = pd.json_normalize(df.away_content)
@@ -91,7 +91,9 @@ def get_data_minutes(id: int) -> pd.DataFrame:
     # for various groups (2 minutes in one group until 9 minutes in one group)
     for i in range(2, 10):
         # add information for the grouping
-        df[f"group_{i}"] = df.apply(lambda x: int((x["minute"] + ((1 - x["period"]) * 45)) / i), axis=1)
+        df[f"group_{i}"] = df.apply(
+            lambda x: int((x["minute"] + ((1 - x["period"]) * 45)) / i), axis=1
+        )
 
         # cols to group by
         cols_2 = ["match_id", "period", f"group_{i}"]
@@ -101,11 +103,19 @@ def get_data_minutes(id: int) -> pd.DataFrame:
 
         # put the data in the correct format
         df_res = dff[cols_2].rename({f"group_{i}": "group_no"}, axis=1)
-        df_res["content"] = dff[[c for c in dff.columns if c not in cols_2]].to_dict("records")
+        df_res["content"] = dff[[c for c in dff.columns if c not in cols_2]].to_dict(
+            "records"
+        )
         df_res["content"] = df_res.content.astype(str)
 
         # write the data to the database
-        df_res.to_sql(f"data_group_{i}", conn, schema="master_thesis", if_exists="append", index=False)
+        df_res.to_sql(
+            f"data_group_{i}",
+            conn,
+            schema="master_thesis",
+            if_exists="append",
+            index=False,
+        )
 
 
 def get_ids(limit: Optional[int] = None) -> list:
@@ -117,7 +127,7 @@ def get_ids(limit: Optional[int] = None) -> list:
             limit:  The maximum number of games
     Output: ids:    A list of all ids of the games
     """
-    
+
     # specify the query
     QUERY = "SELECT match_id FROM master_thesis.materialized_view_raw_data_match"
     # connect to the db and get the ids
@@ -131,11 +141,12 @@ def get_ids(limit: Optional[int] = None) -> list:
 
 
 def main() -> None:
-    '''
+    """
     The main function calls the data gathering function for all games
-    '''
-    [get_data_minutes(id) for id in tqdm(get_ids())]
-    
+    """
+    for id in tqdm(get_ids()):
+        get_data_minutes(id)
+
     # close the connection
     conn.close()
 
