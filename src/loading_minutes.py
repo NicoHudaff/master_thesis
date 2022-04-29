@@ -23,6 +23,31 @@ conn = create_engine(
     f'postgresql://{config.get("user")}:{config.get("password")}@{config.get("host")}:{config.get("port")}/{config.get("database")}'
 ).connect()
 
+
+def get_groups(minute: int, group_mins: int, min: int, max: int) -> list:
+    """
+    This function returns all groups that that minute belongs to
+
+    Input:  minute:     The minute of the given data
+            group_mins: How many minutes should be grouped together
+            min:        The minimal minute of that period
+            max:        The maximal minute of that period
+    Output:             A list of all groups for that minute
+    """
+    # get the distance of the minute to the minimal and maximal minute of that period
+    dist_max = max - minute + 1
+    dist_min = minute - min + 1
+
+    # based on the distance different groups will be assigned
+    if (dist_max >= group_mins) and (dist_min >= group_mins):
+        return [minute - min + i for i in range(group_mins)]
+
+    elif dist_max >= group_mins:
+        return [minute - min + i + group_mins for i in range(-dist_min, 0)]
+
+    return [minute - min + i for i in range(dist_max)]
+
+
 # @ray.remote
 def get_data_minutes(id: int) -> pd.DataFrame:
     """
@@ -88,18 +113,34 @@ def get_data_minutes(id: int) -> pd.DataFrame:
     # all columns where data is stored in
     cols = [c for c in df.columns if c not in ["match_id", "minute", "period"]]
 
+    df = (
+        df.groupby(["match_id", "period"])
+        .minute.agg([min, max])
+        .rename({"min": "min_minute", "max": "max_minute"}, axis=1)
+        .reset_index()
+        .merge(df, how="right", on=["match_id", "period"])
+    )
+
     # for various groups (2 minutes in one group until 9 minutes in one group)
     for i in range(2, 10):
         # add information for the grouping
         df[f"group_{i}"] = df.apply(
-            lambda x: int((x["minute"] + ((1 - x["period"]) * 45)) / i), axis=1
+            lambda x: get_groups(
+                int(x["minute"]), i, int(x["min_minute"]), int(x["max_minute"])
+            ),
+            axis=1,
         )
 
         # cols to group by
         cols_2 = ["match_id", "period", f"group_{i}"]
 
         # grouping the data
-        dff = df.groupby(cols_2)[cols].sum().reset_index(drop=False)
+        dff = (
+            df.explode(f"group_{i}")
+            .groupby(cols_2)[cols]
+            .agg(sum)
+            .reset_index(drop=False)
+        )
 
         # put the data in the correct format
         df_res = dff[cols_2].rename({f"group_{i}": "group_no"}, axis=1)
@@ -110,7 +151,7 @@ def get_data_minutes(id: int) -> pd.DataFrame:
 
         # write the data to the database
         df_res.to_sql(
-            f"data_group_{i}",
+            f"data_group_{i}_2",
             conn,
             schema="master_thesis",
             if_exists="append",
