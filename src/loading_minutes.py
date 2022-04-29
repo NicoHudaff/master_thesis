@@ -49,11 +49,12 @@ def get_groups(minute: int, group_mins: int, min: int, max: int) -> list:
 
 
 # @ray.remote
-def get_data_minutes(id: int) -> pd.DataFrame:
+def get_data_minutes(id: int, alt_met: Optional[bool] = False) -> pd.DataFrame:
     """
     This function will gather information about the games and will group by more than one minute
 
     Input:  id: The id of the game
+            alt_met:    Boolean value wether the alternative method should be performed
     """
     # query to select all information about the home and away data
     QUERY = f"""
@@ -113,13 +114,14 @@ def get_data_minutes(id: int) -> pd.DataFrame:
     # all columns where data is stored in
     cols = [c for c in df.columns if c not in ["match_id", "minute", "period"]]
 
-    df = (
-        df.groupby(["match_id", "period"])
-        .minute.agg([min, max])
-        .rename({"min": "min_minute", "max": "max_minute"}, axis=1)
-        .reset_index()
-        .merge(df, how="right", on=["match_id", "period"])
-    )
+    if alt_met:
+        df = (
+            df.groupby(["match_id", "period"])
+            .minute.agg([min, max])
+            .rename({"min": "min_minute", "max": "max_minute"}, axis=1)
+            .reset_index()
+            .merge(df, how="right", on=["match_id", "period"])
+        )
 
     # for various groups (2 minutes in one group until 9 minutes in one group)
     for i in range(2, 10):
@@ -127,7 +129,9 @@ def get_data_minutes(id: int) -> pd.DataFrame:
         df[f"group_{i}"] = df.apply(
             lambda x: get_groups(
                 int(x["minute"]), i, int(x["min_minute"]), int(x["max_minute"])
-            ),
+            )
+            if alt_met
+            else lambda x: int((x["minute"] + ((1 - x["period"]) * 45)) / i),
             axis=1,
         )
 
@@ -135,12 +139,15 @@ def get_data_minutes(id: int) -> pd.DataFrame:
         cols_2 = ["match_id", "period", f"group_{i}"]
 
         # grouping the data
-        dff = (
-            df.explode(f"group_{i}")
-            .groupby(cols_2)[cols]
-            .agg(sum)
-            .reset_index(drop=False)
-        )
+        if alt_met:
+            dff = (
+                df.explode(f"group_{i}")
+                .groupby(cols_2)[cols]
+                .agg(sum)
+                .reset_index(drop=False)
+            )
+        else:
+            dff = df.groupby(cols_2)[cols].sum().reset_index(drop=False)
 
         # put the data in the correct format
         df_res = dff[cols_2].rename({f"group_{i}": "group_no"}, axis=1)
@@ -150,8 +157,9 @@ def get_data_minutes(id: int) -> pd.DataFrame:
         df_res["content"] = df_res.content.astype(str)
 
         # write the data to the database
+        table_name = f"data_group_{i}" + ("_2" if alt_met else "")
         df_res.to_sql(
-            f"data_group_{i}_2",
+            table_name,
             conn,
             schema="master_thesis",
             if_exists="append",
@@ -187,6 +195,7 @@ def main() -> None:
     """
     for id in tqdm(get_ids()):
         get_data_minutes(id)
+        get_data_minutes(id, alt_met=True)
 
     # close the connection
     conn.close()
