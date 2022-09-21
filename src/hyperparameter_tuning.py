@@ -421,15 +421,15 @@ def main() -> None:
 
     # log some further informations
     logging.info(f"Study statistics for the dataset {dataset}: ")
-    logging.info("  Number of finished trials: ", len(study.trials))
-    logging.info("  Number of pruned trials: ", len(pruned_trials))
-    logging.info("  Number of complete trials: ", len(complete_trials))
+    logging.info("  Number of finished trials: " + str(len(study.trials)))
+    logging.info("  Number of pruned trials: " + str(len(pruned_trials)))
+    logging.info("  Number of complete trials: " + str(len(complete_trials)))
 
     # find the best trial and log these information
     logging.info("Best trial:")
     trial = study.best_trial
 
-    logging.info("  Value: ", trial.value)
+    logging.info("  Value: " + str(trial.value))
 
     logging.info("  Params: ")
     for key, value in trial.params.items():
