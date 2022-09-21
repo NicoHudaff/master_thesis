@@ -376,7 +376,7 @@ def objective(trial: Trial) -> float:
             ]
         # log the anomaly loss
         logging.info(
-            "anomaly loss is {} for model".format(anomaly_loss / len(anomaly_loader))
+            "anomaly loss is {} for model ".format(anomaly_loss / len(anomaly_loader))
             + model_info
         )
         # calculate the best F1 score
@@ -395,7 +395,7 @@ def objective(trial: Trial) -> float:
             ]
         )
         # log the F1 Score
-        logging.info("The F1 score is {} for model".format(f_score) + model_info)
+        logging.info("The F1 score is {} for model ".format(f_score) + model_info)
 
         # report the results
         trial.report(f_score, epoch)
