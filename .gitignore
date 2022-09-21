@@ -133,3 +133,4 @@ notebooks/*
 *.ipynb
 *.csv
 config.json
+paper/*
