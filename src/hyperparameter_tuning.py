@@ -25,6 +25,8 @@ import logging
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 32
 N_TRIALS = 100
+MAX_LAYERS = 3
+EPOCHS = 50
 
 # define the minute and what dataset is loaded
 MINUTES = 5
@@ -57,6 +59,20 @@ if __name__ == "__main__":
         type=int,
         help="set the number of trials, default value is 100",
     )
+    # define the max layers
+    parser.add_argument(
+        "-l",
+        "--maxlayer",
+        type=int,
+        help="set the number of max layers, default value is 3",
+    )
+    # define the max epochs
+    parser.add_argument(
+        "-e",
+        "--maxepochs",
+        type=int,
+        help="set the number of max epochs, default value is 50 and the value can not be below 5",
+    )
     # specify which dataset is used
     parser.add_argument(
         "-s",
@@ -78,8 +94,15 @@ batch_size = (
     args.get("batch", BATCH_SIZE) if args.get("batch") is not None else BATCH_SIZE
 )
 n_trials = (
-    args.get("n_trials", N_TRIALS) if args.get("n_trials") is not None else N_TRIALS
+    args.get("trials", N_TRIALS) if args.get("trials") is not None else N_TRIALS
 )
+max_layers = (
+    args.get("maxlayers", MAX_LAYERS) if args.get("maxlayers") is not None else MAX_LAYERS
+)
+max_epochs = (
+    args.get("maxepochs", EPOCHS) if args.get("maxepochs") is not None else EPOCHS
+)
+max_epochs = max(5, max_epochs)
 
 # basic configurations for logging settings
 logging.basicConfig(
@@ -173,7 +196,7 @@ def define_model(trial: Trial) -> Tuple[Sequential, int, list, list]:
             drops:      The dropout rates for the model
     """
     # We optimize the number of layers, hidden units and dropout ratio in each layer.
-    n_layers = trial.suggest_int("n_layers", 1, 3)
+    n_layers = trial.suggest_int("n_layers", 1, max_layers)
     layers = []
 
     # define the input feature given by the dataset
@@ -186,6 +209,7 @@ def define_model(trial: Trial) -> Tuple[Sequential, int, list, list]:
     for i in range(n_layers):
         # get the output features for this trial in this layer
         out_features = trial.suggest_int("n_units_l{}".format(i), 10, 700)
+        # out_features = trial.suggest_int("n_units_l{}".format(i), 10, (outs[-1] if i != 0 else 700)))
         # add the layer
         layers.append(nn.Linear((in_features if i == 0 else outs[-1]), out_features))
         # put the output features in a list
@@ -302,7 +326,7 @@ def objective(trial: Trial) -> float:
     # define/specify the model
     optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
     # generate the epoch number
-    epochs = trial.suggest_int("epochs", 5, 50)
+    epochs = trial.suggest_int("epochs", 5, max_epochs)
 
     # put the model info together for logging purposes
     model_info = str(
