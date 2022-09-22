@@ -21,17 +21,10 @@ from optuna.trial._trial import Trial
 
 import logging
 
-# basic configurations for logging settings
-logging.basicConfig(
-    format="%(asctime)s %(levelname)-8s %(message)s",
-    filename="creation.log",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-)
-
 # define some basic things for the model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 32
+N_TRIALS = 100
 
 # define the minute and what dataset is loaded
 MINUTES = 5
@@ -57,6 +50,13 @@ if __name__ == "__main__":
         type=int,
         help="set the batches that will be loaded, default value is 32",
     )
+    # define the trial numbers
+    parser.add_argument(
+        "-t",
+        "--trials",
+        type=int,
+        help="set the number of trials, default value is 100",
+    )
     # specify which dataset is used
     parser.add_argument(
         "-s",
@@ -71,7 +71,15 @@ if __name__ == "__main__":
 strict = "strict" in args.keys()
 minutes = min(9, max(1, args.get("minutes", MINUTES))) if "minutes" in args.keys() else MINUTES
 batch_size = args.get("batch", BATCH_SIZE) if "batch" in args.keys() else BATCH_SIZE
+n_trials = args.get("n_trials", N_TRIALS) if "n_trials" in args.keys() else N_TRIALS
 
+# basic configurations for logging settings
+logging.basicConfig(
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    filename=f"creation_{minutes}{('_2' if not strict else '')}.log",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
 
 # don't show warnings
 warnings.filterwarnings("ignore")
@@ -413,7 +421,7 @@ def main() -> None:
 
     # initialize the finding for the best parameters
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=n_trials)
 
     # get further information about the the completed and pruned trials
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
