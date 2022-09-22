@@ -68,10 +68,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args = vars(args)
 
-strict = "strict" in args.keys()
-minutes = min(9, max(1, args.get("minutes", MINUTES))) if "minutes" in args.keys() else MINUTES
-batch_size = args.get("batch", BATCH_SIZE) if "batch" in args.keys() else BATCH_SIZE
-n_trials = args.get("n_trials", N_TRIALS) if "n_trials" in args.keys() else N_TRIALS
+strict = args.get("strict")
+minutes = (
+    min(9, max(1, args.get("minutes", MINUTES)))
+    if args.get("minutes") is not None
+    else MINUTES
+)
+batch_size = (
+    args.get("batch", BATCH_SIZE) if args.get("batch") is not None else BATCH_SIZE
+)
+n_trials = (
+    args.get("n_trials", N_TRIALS) if args.get("n_trials") is not None else N_TRIALS
+)
 
 # basic configurations for logging settings
 logging.basicConfig(
@@ -229,7 +237,7 @@ def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader]:
     train = df[~anomaly_msk]
     # shuffle the training data
     train = train.sample(frac=1).reset_index(drop=True)
-    
+
     # split in test and train datasets
     num_train = int(len(train) * 0.7)
     test = train[num_train:]
@@ -362,7 +370,7 @@ def objective(trial: Trial) -> float:
                 criterion(y_pred[:, i, :], batch_features[:, i, :])
                 for i in range(y_pred.shape[-2])
             ]
-        
+
         # log the test loss
         logging.info(
             "test loss is {} for model ".format(test_loss / len(test_loader))
