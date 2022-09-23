@@ -53,7 +53,7 @@ def get_data_minutes(id: int, alt_met: Optional[bool] = False) -> pd.DataFrame:
     """
     This function will gather information about the games and will group by more than one minute
 
-    Input:  id: The id of the game
+    Input:  id:         The id of the game
             alt_met:    Boolean value wether the alternative method should be performed
     """
     # query to select all information about the home and away data
@@ -124,14 +124,14 @@ def get_data_minutes(id: int, alt_met: Optional[bool] = False) -> pd.DataFrame:
         )
 
     # for various groups (2 minutes in one group until 9 minutes in one group)
-    for i in range(2, 10):
+    for i in range(1, 10):
         # add information for the grouping
         df[f"group_{i}"] = df.apply(
             lambda x: get_groups(
                 int(x["minute"]), i, int(x["min_minute"]), int(x["max_minute"])
             )
             if alt_met
-            else lambda x: int((x["minute"] + ((1 - x["period"]) * 45)) / i),
+            else int((x["minute"] + ((1 - x["period"]) * 45)) / i),
             axis=1,
         )
 

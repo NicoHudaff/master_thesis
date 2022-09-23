@@ -163,7 +163,7 @@ def gather_data(id: int) -> pd.DataFrame:
             CASE WHEN match_id = '5' THEN 'anomaly' else 'normal' END AS result,
             content
         FROM
-            master_thesis.data_group_{max(2, min(9, minutes))}{'_2' if not strict else ''}
+            master_thesis.data_group_{max(1, min(9, minutes))}{'_2' if (not strict) and (minutes != 1) else ''}
         WHERE
             match_id = '{id}'
         """
