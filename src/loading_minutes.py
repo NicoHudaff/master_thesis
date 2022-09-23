@@ -96,6 +96,10 @@ def get_data_minutes(id: int, alt_met: Optional[bool] = False) -> pd.DataFrame:
     # execute the query
     df = pd.read_sql(QUERY, conn)
 
+    # for the anomaly game substract 45 minutes so that the game also starts at the 46th minute
+    if str(id) in ["5", "5.0"]:
+        df["minute"] = df.minute - 45
+
     # put string in dict from content
     for col in ["home_content", "away_content"]:
         df[col] = df[col].apply(lambda x: x.replace("nan", "np.nan"))
@@ -124,7 +128,7 @@ def get_data_minutes(id: int, alt_met: Optional[bool] = False) -> pd.DataFrame:
         )
 
     # for various groups (2 minutes in one group until 9 minutes in one group)
-    for i in range(1, 10):
+    for i in range((2 if alt_met else 1), 10):
         # add information for the grouping
         df[f"group_{i}"] = df.apply(
             lambda x: get_groups(
