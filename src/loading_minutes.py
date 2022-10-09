@@ -24,28 +24,32 @@ conn = create_engine(
 ).connect()
 
 
-def get_groups(minute: int, group_mins: int, min: int, max: int) -> list:
+def get_groups(minute: int, group_mins: int, minimal: int, maximal: int) -> list:
     """
     This function returns all groups that that minute belongs to
 
     Input:  minute:     The minute of the given data
             group_mins: How many minutes should be grouped together
-            min:        The minimal minute of that period
-            max:        The maximal minute of that period
+            minimal:    The minimal minute of that period
+            maximal:    The maximal minute of that period
     Output:             A list of all groups for that minute
     """
     # get the distance of the minute to the minimal and maximal minute of that period
-    dist_max = max - minute + 1
-    dist_min = minute - min + 1
+    dist_max = maximal - minute + 1
+    dist_min = minute - minimal + 1
 
     # based on the distance different groups will be assigned
     if (dist_max >= group_mins) and (dist_min >= group_mins):
-        return [minute - min + i for i in range(group_mins)]
+        return [minute - minimal + i for i in range(group_mins)]
 
-    elif dist_max >= group_mins:
-        return [minute - min + i + group_mins for i in range(-dist_min, 0)]
+    elif (dist_max >= group_mins) and (dist_min < group_mins):
+        return [minute - minimal + i + group_mins for i in range(-dist_min, 0)]
 
-    return [minute - min + i for i in range(dist_max)]
+    elif (dist_max < group_mins) and (dist_min >= group_mins):
+        return [minute - minimal + i for i in range(dist_max)]
+
+    dist_min_to_groups = group_mins - dist_min
+    return [minute - minimal + i for i in range(dist_min_to_groups, dist_max)]
 
 
 # @ray.remote
