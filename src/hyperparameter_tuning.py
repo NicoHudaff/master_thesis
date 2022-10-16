@@ -107,7 +107,7 @@ max_epochs = max(5, max_epochs)
 # basic configurations for logging settings
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
-    filename=f"results_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.log",
+    filename=f"logs/results_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.log",
     datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
 )
