@@ -324,7 +324,10 @@ def check_new_best_score(f1score: float, minutes: int, strict: bool) -> bool:
     """
     # read the current best F1 Score
     with open(f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt", "r") as f:
-        l = float(f.readlines()[0])
+        try:
+            l = float(f.readlines()[0])
+        except IndexError:
+            l = 0
 
     # test whether it is higher
     if f1score > l:
