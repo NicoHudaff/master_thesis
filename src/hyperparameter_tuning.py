@@ -517,7 +517,8 @@ def objective(trial: Trial) -> float:
     logging.info("The F1 score (validation set) is {} for model ".format(f_score_valid) + model_info)
 
     if check_new_best_score(f_score, minutes, strict):
-        torch.save(model.state_dict(), f"model_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.pt")
+        torch.save(model.state_dict(), f"models/model_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.pt")
+        logging.info("saved model")
 
     return f_score
 
