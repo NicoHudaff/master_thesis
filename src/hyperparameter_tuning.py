@@ -107,7 +107,7 @@ max_epochs = max(5, max_epochs)
 # basic configurations for logging settings
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
-    filename=f"creation_{minutes}{('_2' if not strict else '')}.log",
+    filename=f"results_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.log",
     datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
 )
@@ -241,7 +241,7 @@ def define_model(trial: Trial) -> Tuple[Sequential, int, list, list]:
     return nn.Sequential(*layers), n_layers * 2, outs, drops
 
 
-def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader]:
+def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     """
     This function returns the dataset split into train, test and anomaly.
     It will load the the data from the database and will transform it into a pytorch DataLoader
@@ -265,7 +265,9 @@ def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader]:
     # split in test and train datasets
     num_train = int(len(train) * 0.7)
     test = train[num_train:]
-    train = train[num_train:]
+    train = train[:num_train]
+    valid = test.head(int(len(test)/2))
+    test = test.tail(int(len(test)/2))
 
     # load it into pytorch dataloader for the train set
     train = torch.tensor(train.drop("result", axis=1).values.astype(np.float32))
@@ -279,6 +281,12 @@ def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader]:
     test_loader = utils.data.DataLoader(
         dataset=test_tensor, batch_size=batch_size, shuffle=True
     )
+    # load it into pytorch dataloader for the valid set
+    valid = torch.tensor(valid.drop("result", axis=1).values.astype(np.float32))
+    valid_tensor = utils.data.TensorDataset(valid)
+    valid_loader = utils.data.DataLoader(
+        dataset=valid_tensor, batch_size=batch_size, shuffle=True
+    )
     # load it into pytorch dataloader for the anomaly set
     anomaly = torch.tensor(anomaly.drop("result", axis=1).values.astype(np.float32))
     anomaly_tensor = utils.data.TensorDataset(anomaly)
@@ -286,7 +294,7 @@ def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader]:
         dataset=anomaly_tensor, batch_size=batch_size, shuffle=True
     )
 
-    return train_loader, test_loader, anomaly_loader
+    return train_loader, test_loader, anomaly_loader, valid_loader
 
 
 def get_f1_score(d: dict) -> float:
@@ -302,6 +310,31 @@ def get_f1_score(d: dict) -> float:
         d.get("True positive", 0)
         + (d.get("False positive", 0) + d.get("False negative", 0)) / 2
     )
+
+
+def check_new_best_score(f1score: float, minutes: int, strict: bool) -> bool:
+    """
+    This function will check whether a the current f1score is better than the current highest one
+    If so the new f1 Score will be stored
+
+    Input:  f1score:    The current F1 Score of the model
+            minutes:    The minutes grouped together
+            strict:     Boolean value whether the dataset is strict or not
+    Output:             The boolean value indicating whether the new F1 Score is a new best score
+    """
+    # read the current best F1 Score
+    with open(f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt", "r") as f:
+        l = float(f.readlines()[0])
+
+    # test whether it is higher
+    if f1score > l:
+        # if so store the current F1 Score
+        with open(f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt", 'w') as f:
+            f.write(str(f1score))
+        
+        # return the result
+        return True
+    return False
 
 
 def objective(trial: Trial) -> float:
@@ -444,6 +477,45 @@ def objective(trial: Trial) -> float:
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
 
+    # get the valid loss
+    valid_loss = 0
+    valid_loss_list = []
+    for batch_features in valid_loader:
+        batch_features = torch.stack(batch_features).to(device)
+        # get the prediction/reproduction
+        y_pred = eval_model(batch_features)
+        # calculate the losses
+        valid_loss += criterion(y_pred, batch_features)
+        valid_loss_list += [
+            criterion(y_pred[:, i, :], batch_features[:, i, :])
+            for i in range(y_pred.shape[-2])
+        ]
+    # log the valid loss
+    logging.info(
+        "valid loss is {} for model ".format(valid_loss / len(valid_loader))
+        + model_info
+    )
+    # calculate the best F1 score based on the validation set
+    f_score_valid = max(
+        [
+            get_f1_score(
+                {
+                    "False negative": i,
+                    "False positive": int(sum([t >= v for t in valid_loss_list])),
+                    "True positive": len(anomaly_loss_list) - i,
+                    "True negative": int(sum([t < v for t in valid_loss_list])),
+                    "threshold": v,
+                }
+            )
+            for i, v in enumerate(sorted(anomaly_loss_list))
+        ]
+    )
+    # log the F1 Score
+    logging.info("The F1 score (validation set) is {} for model ".format(f_score_valid) + model_info)
+
+    if check_new_best_score(f_score, minutes, strict):
+        torch.save(model.state_dict(), f"model_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.pt")
+
     return f_score
 
 
@@ -478,5 +550,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     # Get the dataset.
-    train_loader, test_loader, anomaly_loader = get_datasets()
+    train_loader, test_loader, anomaly_loader, valid_loader = get_datasets()
     main()
