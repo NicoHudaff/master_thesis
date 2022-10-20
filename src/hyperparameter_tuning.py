@@ -409,6 +409,8 @@ def objective(trial: Trial) -> float:
         loss = loss / len(train_loader)
 
         # log the epoch training loss
+        if epoch + 1 == epochs:
+            logging.info("final epoch")
         logging.info(
             "epoch : {}/{}, loss = {:.6f} for model ".format(epoch + 1, epochs, loss)
             + model_info
