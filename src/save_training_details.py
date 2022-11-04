@@ -22,7 +22,7 @@ def get_details_model_training(minutes: int, strict: bool) -> pd.DataFrame:
             strict:     Boolean value indicating how the dataset was created
     """
     # define the sorce of the log file
-    log_file = "../logs/results_"
+    log_file = "./logs/results_"
     file = f"{log_file}{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.log"
 
     # gather the information
