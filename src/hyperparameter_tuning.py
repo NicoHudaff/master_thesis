@@ -93,11 +93,11 @@ minutes = (
 batch_size = (
     args.get("batch", BATCH_SIZE) if args.get("batch") is not None else BATCH_SIZE
 )
-n_trials = (
-    args.get("trials", N_TRIALS) if args.get("trials") is not None else N_TRIALS
-)
+n_trials = args.get("trials", N_TRIALS) if args.get("trials") is not None else N_TRIALS
 max_layers = (
-    args.get("maxlayers", MAX_LAYERS) if args.get("maxlayers") is not None else MAX_LAYERS
+    args.get("maxlayers", MAX_LAYERS)
+    if args.get("maxlayers") is not None
+    else MAX_LAYERS
 )
 max_epochs = (
     args.get("maxepochs", EPOCHS) if args.get("maxepochs") is not None else EPOCHS
@@ -266,8 +266,8 @@ def get_datasets() -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     num_train = int(len(train) * 0.7)
     test = train[num_train:]
     train = train[:num_train]
-    valid = test.head(int(len(test)/2))
-    test = test.tail(int(len(test)/2))
+    valid = test.head(int(len(test) / 2))
+    test = test.tail(int(len(test) / 2))
 
     # load it into pytorch dataloader for the train set
     train = torch.tensor(train.drop("result", axis=1).values.astype(np.float32))
@@ -323,7 +323,10 @@ def check_new_best_score(f1score: float, minutes: int, strict: bool) -> bool:
     Output:             The boolean value indicating whether the new F1 Score is a new best score
     """
     # read the current best F1 Score
-    with open(f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt", "r") as f:
+    with open(
+        f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt",
+        "r",
+    ) as f:
         try:
             l = float(f.readlines()[0])
         except IndexError:
@@ -332,9 +335,12 @@ def check_new_best_score(f1score: float, minutes: int, strict: bool) -> bool:
     # test whether it is higher
     if f1score > l:
         # if so store the current F1 Score
-        with open(f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt", 'w') as f:
+        with open(
+            f"./models/best_score/score_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.txt",
+            "w",
+        ) as f:
             f.write(str(f1score))
-        
+
         # return the result
         return True
     return False
@@ -403,7 +409,6 @@ def objective(trial: Trial) -> float:
 
             # add the mini-batch training loss to epoch loss
             loss += train_loss.item()
-            # loss_list += [criterion(y_pred[:,i,:], batch_features[:,i,:]) for i in range(y_pred.shape[-2])]
 
         # compute the epoch training loss
         loss = loss / len(train_loader)
@@ -429,6 +434,18 @@ def objective(trial: Trial) -> float:
             # calculate the losses
             test_loss += criterion(y_pred, batch_features)
             test_loss_list += [
+                criterion(y_pred[:, i, :], batch_features[:, i, :])
+                for i in range(y_pred.shape[-2])
+            ]
+
+        # get the train loss
+        loss_list = []
+        for batch_features in train_loader:
+            batch_features = torch.stack(batch_features).to(device)
+            # get the predictions/reproduction
+            y_pred = eval_model(batch_features)
+            # calculate the losses
+            loss_list += [
                 criterion(y_pred[:, i, :], batch_features[:, i, :])
                 for i in range(y_pred.shape[-2])
             ]
@@ -516,11 +533,34 @@ def objective(trial: Trial) -> float:
         ]
     )
     # log the F1 Score
-    logging.info("The F1 score (validation set) is {} for model ".format(f_score_valid) + model_info)
+    logging.info(
+        "The F1 score (validation set) is {} for model ".format(f_score_valid)
+        + model_info
+    )
 
     if check_new_best_score(f_score, minutes, strict):
-        torch.save(model.state_dict(), f"models/model_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.pt")
-        logging.info("saved model")
+        torch.save(
+            model.state_dict(),
+            f"models/model_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.pt",
+        )
+        with open(
+            f"models/model_{minutes}{'_2' if (not strict) and (minutes != 1) else ''}.json",
+            "w",
+        ) as f:
+            try:
+                json.dump(
+                    {
+                        "validLoss": valid_loss_list,
+                        "testLoss": test_loss_list,
+                        "trainLoss": loss_list,
+                        "anomalyLoss": anomaly_loss_list,
+                    },
+                    f,
+                )
+                logging.info("saved losses")
+            except:
+                pass
+            logging.info("saved model")
 
     return f_score
 
