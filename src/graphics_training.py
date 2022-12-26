@@ -5,6 +5,7 @@ import plotly.figure_factory as ff
 import json
 import numpy as np
 import warnings
+from collections import Counter
 from plotly.graph_objs._figure import Figure
 from typing import Optional
 import scipy.signal.signaltools
@@ -132,7 +133,7 @@ def get_graph(
     # if the x axis is not in the columns of the DataFrame None will be returned
     if x not in translation.keys():
         return None
-    
+
     # write down the mask
     msk = (
         dff.dataset
@@ -188,7 +189,7 @@ def get_graph(
                 translation.get(x) if x not in ["opt", "n_layers"] else "F1 Score"
             ),
         )
-    
+
     # give the figure a title
     strict_or_not = (
         "strict minutes seperation" if strict else "no stricht minutes seperation"
@@ -199,6 +200,104 @@ def get_graph(
     )
     # display the y axis label only if it makes sense
     fig.update_yaxes(visible=(x not in ["opt", "n_layers"]) or bool(three_dim))
+    return fig
+
+
+def get_graph_test_f1(
+    test: Optional[bool] = False, ba_data: Optional[bool] = False
+) -> Figure:
+    """
+    This function returns graphs regarding the general training result for the trained models
+    Also in comparison to the bachelor thesis results
+    Input:  test:       Optional boolean value indicating whether the test or validation results should be compared
+            ba_data:    Optional boolean value to indicate whether the test data should be compared to the master thesis data
+                        Only relevant if test parameter is True
+    """
+    # load the data
+    df = manipulate(pd.read_sql("SELECT * FROM master_thesis.results_training", conn))
+
+    # look at only the final epoch
+    df = df[df.epoch_ratio == 1]
+
+    # gather the results for the best test result
+    df_res = (
+        df[(df.groupby(["minutes", "strict"]).f1_test.transform(max) == df["f1_test"])]
+        .groupby(["minutes", "strict"])
+        .agg(
+            lambda x: {
+                max(list(x.get("f1_test"))): dict(Counter(list(x.get("valid_f1"))))
+            }
+        )
+        .reset_index(drop=False)
+        .rename({0: "results"}, axis=1)
+    )
+
+    # write the test and valid F1 scores in seperate columns
+    df_res["test_f1"] = df_res.results.apply(lambda x: list(x.keys())[0])
+    df_res["valid_f1"] = df_res.results.apply(
+        lambda x: {
+            k: v / sum(list(list(x.values())[0].values()))
+            for k, v in list(x.values())[0].items()
+        }
+    )
+
+    # for representing the test results
+    if test:
+        # for comparing with the bachelor thesis results
+        if ba_data:
+            # gather the bachelor thesis results
+            with open("../data/ba_f1.json") as f:
+                ba_data = pd.DataFrame(
+                    json.load(f).items(), columns=["model", "f1_score"]
+                )
+
+            # extract the minutes of the model
+            ba_data["minutes"] = ba_data.model.apply(lambda x: x[x.find("__") + 2 :])
+            ba_data["minutes"] = ba_data.minutes.apply(
+                lambda x: int(x[: x.find("_")]) - 1
+            )
+
+            # get the best model performance for each dataset
+            ba_data = ba_data.groupby("minutes").f1_score.max().reset_index(drop=False).rename({"f1_score": "test_f1"}, axis=1)
+
+            # rename the type to bachelor thesis
+            ba_data["strict"] = "bachelor_thesis"
+
+            # merge with other results
+            df_res = pd.concat([df_res, ba_data])
+
+        # return the graph
+        fig = px.bar(
+            df_res.rename({"strict": "type"}, axis=1),
+            x="minutes",
+            y="test_f1",
+            color="type",
+            barmode="group",
+        )
+
+        # update the width of the bars
+        fig.update_traces(width=0.25)
+
+        return fig
+
+    # for validation results gather the ratio for the various valid F1 scores and explode the dataframe
+    df_res["valid_f1_ratio"] = df_res.valid_f1.apply(lambda x: list(x.values()))
+    df_res["valid_f1"] = df_res.valid_f1.apply(lambda x: list(x.keys()))
+    df_res = df_res.explode(["valid_f1", "valid_f1_ratio"])
+
+    # return the figure
+    fig = px.bar(
+        df_res,
+        x="valid_f1",
+        y="valid_f1_ratio",
+        barmode="group",
+        color="strict",
+        facet_row="minutes",
+        category_orders={"minutes": [1, 2, 3, 4, 5, 6, 7, 8, 9]},
+        width=1200,
+        height=2400,
+    )
+
     return fig
 
 
