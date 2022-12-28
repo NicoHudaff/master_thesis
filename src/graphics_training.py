@@ -7,7 +7,7 @@ import numpy as np
 import warnings
 from collections import Counter
 from plotly.graph_objs._figure import Figure
-from typing import Optional
+from typing import Optional, Union, List
 import scipy.signal.signaltools
 
 # don't show warnings
@@ -204,14 +204,15 @@ def get_graph(
 
 
 def get_graph_test_f1(
-    test: Optional[bool] = False, ba_data: Optional[bool] = False
+    test: Optional[bool] = False, ba_data: Optional[bool] = False, minutes_restr: Optional[Union[bool, None, List[int]]] = False
 ) -> Figure:
     """
     This function returns graphs regarding the general training result for the trained models
     Also in comparison to the bachelor thesis results
-    Input:  test:       Optional boolean value indicating whether the test or validation results should be compared
-            ba_data:    Optional boolean value to indicate whether the test data should be compared to the master thesis data
-                        Only relevant if test parameter is True
+    Input:  test:           Optional boolean value indicating whether the test or validation results should be compared
+            ba_data:        Optional boolean value to indicate whether the test data should be compared to the master thesis data
+                            Only relevant if test parameter is True
+            minutes_restr:  A optional list of containing only minutes that should be displayed
     """
     # load the data
     df = manipulate(pd.read_sql("SELECT * FROM master_thesis.results_training", conn))
@@ -265,6 +266,9 @@ def get_graph_test_f1(
 
             # merge with other results
             df_res = pd.concat([df_res, ba_data])
+        
+        if minutes_restr:
+            df_res = df_res[df_res.minutes.isin(minutes_restr)]
 
         # return the graph
         fig = px.bar(
@@ -288,6 +292,9 @@ def get_graph_test_f1(
     df_res["valid_f1"] = df_res.valid_f1.apply(lambda x: list(x.keys()))
     df_res = df_res.explode(["valid_f1", "valid_f1_ratio"])
     df_res["dataset"] = df_res.strict.replace(True, "Dataset 1").replace(False, "Dataset 2")
+        
+    if minutes_restr:
+        df_res = df_res[df_res.minutes.isin(minutes_restr)]
 
     # return the figure
     fig = px.bar(
@@ -297,9 +304,9 @@ def get_graph_test_f1(
         barmode="group",
         color="dataset",
         facet_row="minutes",
-        category_orders={"minutes": [1, 2, 3, 4, 5, 6, 7, 8, 9]},
+        category_orders={"minutes": [1, 2, 3, 4, 5, 6, 7, 8, 9] if not minutes_restr else minutes_restr},
         width=1200,
-        height=2400,
+        height=(2400 if not minutes_restr else 2400/(9/len(minutes_restr))),
     )
     fig.update_layout(
         title=f"F1 Test scores compared for different datasets",
