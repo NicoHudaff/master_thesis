@@ -268,15 +268,18 @@ def get_graph_test_f1(
 
         # return the graph
         fig = px.bar(
-            df_res.rename({"strict": "type"}, axis=1),
+            df_res.replace(True, "Dataset 1").replace(False, "Dataset 2").rename({"strict": "dataset"}, axis=1),
             x="minutes",
             y="test_f1",
-            color="type",
+            color="dataset",
             barmode="group",
         )
 
         # update the width of the bars
         fig.update_traces(width=0.25)
+        fig.update_layout(
+            title=f"F1 Test scores compared for different datasets",
+        )
 
         return fig
 
@@ -284,6 +287,7 @@ def get_graph_test_f1(
     df_res["valid_f1_ratio"] = df_res.valid_f1.apply(lambda x: list(x.values()))
     df_res["valid_f1"] = df_res.valid_f1.apply(lambda x: list(x.keys()))
     df_res = df_res.explode(["valid_f1", "valid_f1_ratio"])
+    df_res["dataset"] = df_res.strict.replace(True, "Dataset 1").replace(False, "Dataset 2")
 
     # return the figure
     fig = px.bar(
@@ -291,11 +295,19 @@ def get_graph_test_f1(
         x="valid_f1",
         y="valid_f1_ratio",
         barmode="group",
-        color="strict",
+        color="dataset",
         facet_row="minutes",
         category_orders={"minutes": [1, 2, 3, 4, 5, 6, 7, 8, 9]},
         width=1200,
         height=2400,
+    )
+    fig.update_layout(
+        title=f"F1 Test scores compared for different datasets",
+        xaxis = dict(
+            tickmode = 'linear',
+            tick0 = 0.5,
+            dtick = 1/6
+        )
     )
 
     return fig
