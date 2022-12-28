@@ -204,7 +204,9 @@ def get_graph(
 
 
 def get_graph_test_f1(
-    test: Optional[bool] = False, ba_data: Optional[bool] = False, minutes_restr: Optional[Union[bool, None, List[int]]] = False
+    test: Optional[bool] = False,
+    ba_data: Optional[bool] = False,
+    minutes_restr: Optional[Union[bool, None, List[int]]] = False,
 ) -> Figure:
     """
     This function returns graphs regarding the general training result for the trained models
@@ -259,20 +261,27 @@ def get_graph_test_f1(
             )
 
             # get the best model performance for each dataset
-            ba_data = ba_data.groupby("minutes").f1_score.max().reset_index(drop=False).rename({"f1_score": "test_f1"}, axis=1)
+            ba_data = (
+                ba_data.groupby("minutes")
+                .f1_score.max()
+                .reset_index(drop=False)
+                .rename({"f1_score": "test_f1"}, axis=1)
+            )
 
             # rename the type to bachelor thesis
             ba_data["strict"] = "bachelor_thesis"
 
             # merge with other results
             df_res = pd.concat([df_res, ba_data])
-        
+
         if minutes_restr:
             df_res = df_res[df_res.minutes.isin(minutes_restr)]
 
         # return the graph
         fig = px.bar(
-            df_res.replace(True, "Dataset 1").replace(False, "Dataset 2").rename({"strict": "dataset"}, axis=1),
+            df_res.replace(True, "Dataset 1")
+            .replace(False, "Dataset 2")
+            .rename({"strict": "dataset"}, axis=1),
             x="minutes",
             y="test_f1",
             color="dataset",
@@ -291,8 +300,10 @@ def get_graph_test_f1(
     df_res["valid_f1_ratio"] = df_res.valid_f1.apply(lambda x: list(x.values()))
     df_res["valid_f1"] = df_res.valid_f1.apply(lambda x: list(x.keys()))
     df_res = df_res.explode(["valid_f1", "valid_f1_ratio"])
-    df_res["dataset"] = df_res.strict.replace(True, "Dataset 1").replace(False, "Dataset 2")
-        
+    df_res["dataset"] = df_res.strict.replace(True, "Dataset 1").replace(
+        False, "Dataset 2"
+    )
+
     if minutes_restr:
         df_res = df_res[df_res.minutes.isin(minutes_restr)]
 
@@ -304,17 +315,17 @@ def get_graph_test_f1(
         barmode="group",
         color="dataset",
         facet_row="minutes",
-        category_orders={"minutes": [1, 2, 3, 4, 5, 6, 7, 8, 9] if not minutes_restr else minutes_restr},
+        category_orders={
+            "minutes": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+            if not minutes_restr
+            else minutes_restr
+        },
         width=1200,
-        height=(2400 if not minutes_restr else 2400/(9/len(minutes_restr))),
+        height=(2400 if not minutes_restr else 2400 / (9 / len(minutes_restr))),
     )
     fig.update_layout(
         title=f"F1 Test scores compared for different datasets",
-        xaxis = dict(
-            tickmode = 'linear',
-            tick0 = 0.5,
-            dtick = 1/6
-        )
+        xaxis=dict(tickmode="linear", tick0=0.5, dtick=1 / 6),
     )
 
     return fig
