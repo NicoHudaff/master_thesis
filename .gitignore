@@ -137,4 +137,5 @@ paper/*
 
 models/*
 
-figures/*
+# figures/*
+.DS_Store

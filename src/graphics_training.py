@@ -279,8 +279,8 @@ def get_graph_test_f1(
 
         # return the graph
         fig = px.bar(
-            df_res.replace(True, "Dataset 2")
-            .replace(False, "Dataset 1")
+            df_res.replace(True, "Dataset 1")
+            .replace(False, "Dataset 2")
             .rename({"strict": "dataset"}, axis=1),
             x="minutes",
             y="test_f1",
@@ -300,8 +300,8 @@ def get_graph_test_f1(
     df_res["valid_f1_ratio"] = df_res.valid_f1.apply(lambda x: list(x.values()))
     df_res["valid_f1"] = df_res.valid_f1.apply(lambda x: list(x.keys()))
     df_res = df_res.explode(["valid_f1", "valid_f1_ratio"])
-    df_res["dataset"] = df_res.strict.replace(True, "Dataset 2").replace(
-        False, "Dataset 1"
+    df_res["dataset"] = df_res.strict.replace(True, "Dataset 1").replace(
+        False, "Dataset 2"
     )
 
     if minutes_restr:
