@@ -78,7 +78,9 @@ if __name__ == "__main__":
         "-s",
         "--strict",
         action="store_true",
-        help="set the strictness of the dataset. Default value if not selected is false. Strict means that if e.g. 3 Minutes is selected minutes 1.-3. and after that 4.-6. are selected. If not that would mean that 1.-3. is followed by 2.-4.",
+        help="""set the strictness of the dataset. Default value if not selected is false.
+        Strict means that if e.g. 3 Minutes is selected minutes 1.-3. and after that 4.-6. are selected.
+        If not that would mean that 1.-3. is followed by 2.-4.""",
     )
 
     args = parser.parse_args()
